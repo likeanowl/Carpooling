@@ -18,7 +18,7 @@ public class TravellerAgent extends Agent {
 	private static final int MILLIS1 = 3000;
 	private static final int MILLIS2 = 2000;
 	private static final int TIMEOUT = 30000;
-	public static final int TIMEOUT1 = 30000;
+	private static final int TIMEOUT1 = 30000;
 	private String travelerCategory;
 	private int cyclesCount = 0;
 	private static final String ANSI_RESET = "\u001B[0m";
