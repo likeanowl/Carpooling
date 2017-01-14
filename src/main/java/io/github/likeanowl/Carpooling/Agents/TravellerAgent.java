@@ -1,8 +1,9 @@
-package Carpooling;
+package io.github.likeanowl.Carpooling.Agents;
 
 import jade.core.AID;
 import jade.core.Agent;
 import jade.core.behaviours.*;
+import jade.core.behaviours.ReceiverBehaviour.Handle;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
@@ -13,27 +14,19 @@ import org.jgrapht.alg.DijkstraShortestPath;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import static io.github.likeanowl.Carpooling.Constants.Constants.*;
+
 public class TravellerAgent extends Agent {
-	private static final int MILLIS = 5000;
-	private static final int MILLIS1 = 3000;
-	private static final int MILLIS2 = 2000;
-	private static final int TIMEOUT = 30000;
-	private static final int TIMEOUT1 = 30000;
 	private String travelerCategory;
 	private int cyclesCount = 0;
-	private static final String ANSI_RESET = "\u001B[0m";
-	private static final String ANSI_RED = "\u001B[31m";
-	private static final int MAX_CYCLES_COUNT = 5;
-	private static final String DRIVER = "driver";
-	private static final String PASSENGER = "passenger";
-	private static final String AGREE_FOR_CARPOOLING = "agreeForCarpooling";
-	private static final String CARPOOLING = "carpooling";
 	private String targetPlace;
 	private String currentPlace;
-	private java.util.HashSet<AID> drivers = new java.util.HashSet<>();
+	private Set<AID> drivers = new java.util.HashSet<>();
 	private int distance;
 	private SimpleWeightedGraph<String, DefaultWeightedEdge> roads = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
-
 	private double maxEconomy = 0;
 	private AID coDriver;
 
@@ -58,23 +51,20 @@ public class TravellerAgent extends Agent {
 		if (args != null && args.length >= 2) {
 			currentPlace = (String) args[0];
 			targetPlace = (String) args[1];
-			distance = (int) (new DijkstraShortestPath<>(roads, currentPlace, targetPlace))
-					.getPathLength();
+			distance = (int) (new DijkstraShortestPath<>(roads, currentPlace, targetPlace)).getPathLength();
 			System.out.println("Traveler agent: " + getAID().getLocalName());
-			System.out.println("Current place: " + currentPlace + "; Target place: " + targetPlace + "; Distance: "
-					+ distance);
-			DFAgentDescription dfd = new DFAgentDescription();
-			dfd.setName(getAID());
-			ServiceDescription sd = new ServiceDescription();
-			sd.setType(CARPOOLING);
-			sd.setName("carpooling");
-			dfd.addServices(sd);
+			System.out.println("Current place: " + currentPlace + "; Target place: " + targetPlace + "; Distance: " + distance);
+			DFAgentDescription agentDescription = new DFAgentDescription();
+			agentDescription.setName(getAID());
+			ServiceDescription serviceDescription = new ServiceDescription();
+			serviceDescription.setType(CARPOOLING);
+			serviceDescription.setName("carpooling");
+			agentDescription.addServices(serviceDescription);
 			try {
-				DFService.register(this, dfd);
+				DFService.register(this, agentDescription);
 			} catch (FIPAException fe) {
 				fe.printStackTrace();
 			}
-
 			addBehaviour(new WakerBehaviour(this, TIMEOUT) {
 				@Override
 				protected void onWake() {
@@ -92,27 +82,27 @@ public class TravellerAgent extends Agent {
 				public void action() {
 					if (cyclesCount < MAX_CYCLES_COUNT) {
 						cyclesCount++;
-						drivers = new java.util.HashSet<>();
+						drivers = new HashSet<>();
 						coDriver = null;
 						maxEconomy = 0;
 						DFAgentDescription template = new DFAgentDescription();
-						ServiceDescription sd = new ServiceDescription();
-						sd.setType(CARPOOLING);
-						template.addServices(sd);
+						ServiceDescription serviceDescription = new ServiceDescription();
+						serviceDescription.setType(CARPOOLING);
+						template.addServices(serviceDescription);
 						try {
 							DFAgentDescription[] result = DFService.search(agent, template);
-							for (DFAgentDescription aResult : result) {
-								if (!aResult.getName().equals(agent.getAID()))
-									drivers.add(aResult.getName());
+							for (DFAgentDescription res : result) {
+								if (!res.getName().equals(agent.getAID()))
+									drivers.add(res.getName());
 							}
 						} catch (FIPAException fe) {
 							fe.printStackTrace();
 						}
 						if (drivers.size() > 0) {
-							ParallelBehaviour pb = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
-							pb.addSubBehaviour(new DriverSearcher(agent));
-							pb.addSubBehaviour(new PassengerSearcher(agent));
-							addSubBehaviour(pb);
+							ParallelBehaviour parallelBehaviour = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
+							parallelBehaviour.addSubBehaviour(new DriverSearcher(agent));
+							parallelBehaviour.addSubBehaviour(new PassengerSearcher(agent));
+							addSubBehaviour(parallelBehaviour);
 							addSubBehaviour(new OfferRequestServer(agent));
 						} else {
 							addBehaviour(new WakerBehaviour(agent, TIMEOUT1) {
@@ -137,8 +127,7 @@ public class TravellerAgent extends Agent {
 		}
 	}
 
-	protected void takeDown() {
-	}
+	protected void takeDown() {}
 
 	private class DriverSearcher extends SequentialBehaviour {
 		private String replyWith;
@@ -146,11 +135,11 @@ public class TravellerAgent extends Agent {
 		public DriverSearcher(Agent agent) {
 			super(agent);
 			addSubBehaviour(new ProposeSender(agent)); // send proposals for drivers
-			ParallelBehaviour pb = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
-			for (AID driver1 : drivers) {
-				pb.addSubBehaviour(new ProposeReplyReceiver(agent, driver1)); //add Receiver for all proposals
+			ParallelBehaviour parallelBehaviour = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
+			for (AID dr : drivers) {
+				parallelBehaviour.addSubBehaviour(new ProposeReplyReceiver(agent, dr)); //add Receiver for all proposals
 			}
-			addSubBehaviour(pb); // receive replies from drivers
+			addSubBehaviour(parallelBehaviour); // receive replies from drivers
 		}
 
 		private class ProposeSender extends OneShotBehaviour {
@@ -166,8 +155,8 @@ public class TravellerAgent extends Agent {
 				msg.setConversationId(CARPOOLING);
 				msg.setReplyWith(replyWith);
 				System.out.println(myAgent.getLocalName() + ": call for proposals");
-				for (AID driver1 : drivers) {
-					msg.addReceiver(driver1);
+				for (AID dr : drivers) {
+					msg.addReceiver(dr);
 				}
 
 				myAgent.send(msg);
@@ -177,14 +166,14 @@ public class TravellerAgent extends Agent {
 
 		private class ProposeReplyReceiver extends SequentialBehaviour {
 			public ProposeReplyReceiver(final Agent agent, final AID sender) {
-				final ReceiverBehaviour.Handle h = ReceiverBehaviour.newHandle();
-				addSubBehaviour(new ReceiverBehaviour(agent, h, MILLIS, MessageTemplate.and(MessageTemplate.MatchSender(sender),
+				final Handle handle = ReceiverBehaviour.newHandle();
+				addSubBehaviour(new ReceiverBehaviour(agent, handle, MILLIS, MessageTemplate.and(MessageTemplate.MatchSender(sender),
 						MessageTemplate.and(MessageTemplate.MatchConversationId(CARPOOLING), MessageTemplate.MatchInReplyTo(replyWith)))));
 				addSubBehaviour(new OneShotBehaviour(agent) {
 					@Override
 					public void action() {
 						try {
-							ACLMessage msg = h.getMessage();
+							ACLMessage msg = handle.getMessage();
 							if (msg.getPerformative() == ACLMessage.PROPOSE) {
 								int price = Integer.parseInt(msg.getContent());
 								if (distance - price > maxEconomy) {
@@ -209,23 +198,23 @@ public class TravellerAgent extends Agent {
 	private class PassengerSearcher extends ParallelBehaviour {
 		public PassengerSearcher(Agent agent) {
 			super(agent, ParallelBehaviour.WHEN_ALL);
-			for (AID driver1 : drivers) {
-				addSubBehaviour(new ProposeReplier(agent, driver1));
+			for (AID dr : drivers) {
+				addSubBehaviour(new ProposeReplier(agent, dr));
 			}
 			//Reply to all proposals
 		}
 
 		private class ProposeReplier extends SequentialBehaviour {
 			public ProposeReplier(final Agent agent, final AID sender) {
-				final ReceiverBehaviour.Handle h = ReceiverBehaviour.newHandle();
-				addSubBehaviour(new ReceiverBehaviour(agent, h, MILLIS1
+				final Handle handle = ReceiverBehaviour.newHandle();
+				addSubBehaviour(new ReceiverBehaviour(agent, handle, MILLIS1
 						, MessageTemplate.and(MessageTemplate.MatchPerformative(ACLMessage.CFP)
 						, MessageTemplate.MatchSender(sender))));
 				addSubBehaviour(new OneShotBehaviour(agent) {
 					@Override
 					public void action() {
 						try {
-							ACLMessage msg = h.getMessage();
+							ACLMessage msg = handle.getMessage();
 							ACLMessage reply = msg.createReply();
 							String[] content = msg.getContent().split(" ");
 							int passengersDistance = Integer.parseInt(content[2]);
@@ -272,23 +261,23 @@ public class TravellerAgent extends Agent {
 			if (coDriver != null) {
 				final String coDriverName = coDriver.getLocalName();
 				addSubBehaviour(new AgreeForBestOffer(myAgent)); //send AGREE to coDriver
-				ParallelBehaviour pb = new ParallelBehaviour(ParallelBehaviour.WHEN_ANY);
-				SequentialBehaviour sb = new SequentialBehaviour(myAgent);
-				final ReceiverBehaviour.Handle h = ReceiverBehaviour.newHandle();
-				sb.addSubBehaviour(new ReceiverBehaviour(myAgent, h, MILLIS2
+				ParallelBehaviour parallelBehaviour = new ParallelBehaviour(ParallelBehaviour.WHEN_ANY);
+				SequentialBehaviour sequentialBehaviour = new SequentialBehaviour(myAgent);
+				final Handle handle = ReceiverBehaviour.newHandle();
+				sequentialBehaviour.addSubBehaviour(new ReceiverBehaviour(myAgent, handle, MILLIS2
 						, MessageTemplate.and(MessageTemplate.MatchConversationId(AGREE_FOR_CARPOOLING)
 						, MessageTemplate.MatchSender(coDriver))));
-				sb.addSubBehaviour(new OneShotBehaviour(myAgent) {
+				sequentialBehaviour.addSubBehaviour(new OneShotBehaviour(myAgent) {
 					@Override
 					public void action() {
 						try {
-							ACLMessage msg = h.getMessage();
+							ACLMessage msg = handle.getMessage();
 							if (msg.getPerformative() == ACLMessage.AGREE) {
 								System.out.println(ANSI_RED + myAgent.getLocalName() + ": goes with "
 										+ coDriverName + " as " + travelerCategory + ANSI_RESET);
-								ParallelBehaviour off = new ParallelBehaviour(myAgent, 2);
-								off.addSubBehaviour(new Refuser(myAgent));
-								off.addSubBehaviour(new OneShotBehaviour(myAgent) {
+								ParallelBehaviour offer = new ParallelBehaviour(myAgent, 2);
+								offer.addSubBehaviour(new Refuser(myAgent));
+								offer.addSubBehaviour(new OneShotBehaviour(myAgent) {
 									@Override
 									public void action() {
 										try {
@@ -298,13 +287,13 @@ public class TravellerAgent extends Agent {
 										}
 									}
 								});
-								off.addSubBehaviour(new WakerBehaviour(myAgent, 5000) {
+								offer.addSubBehaviour(new WakerBehaviour(myAgent, 5000) {
 									@Override
 									protected void onWake() {
 										doDelete();
 									}
 								});
-								addBehaviour(off);
+								addBehaviour(offer);
 							} else {
 								addBehaviour(new WakerBehaviour(myAgent, 5000) {
 									@Override
@@ -335,9 +324,9 @@ public class TravellerAgent extends Agent {
 						}
 					}
 				});
-				pb.addSubBehaviour(sb);                  //receive AGREE or REFUSE from coDriver
-				pb.addSubBehaviour(new Refuser(myAgent));//REFUSE offers wrom other travelers
-				addSubBehaviour(pb);
+				parallelBehaviour.addSubBehaviour(sequentialBehaviour);                  //receive AGREE or REFUSE from coDriver
+				parallelBehaviour.addSubBehaviour(new Refuser(myAgent));//REFUSE offers wrom other travelers
+				addSubBehaviour(parallelBehaviour);
 			} else {
 				addBehaviour(new WakerBehaviour(myAgent, 5000) {
 					@Override
