@@ -30,23 +30,10 @@ public class TravellerAgent extends Agent {
 	private double maxEconomy = 0;
 	private AID coDriver;
 
+	@Override
 	protected void setup() {
 		//Setting roadmap
-		roads.addVertex("Moscow");
-		roads.addVertex("SaintPetersburg");
-		roads.addVertex("Kazan");
-		roads.addVertex("Chelyabinsk");
-		roads.addVertex("Ekaterinburg");
-		roads.addVertex("Yaroslavl");
-		roads.setEdgeWeight(roads.addEdge("Moscow", "SaintPetersburg"), 600);
-		roads.setEdgeWeight(roads.addEdge("Moscow", "Kazan"), 500);
-		roads.setEdgeWeight(roads.addEdge("Moscow", "Ekaterinburg"), 2800);
-		roads.setEdgeWeight(roads.addEdge("Moscow", "Chelyabinsk"), 600);
-		roads.setEdgeWeight(roads.addEdge("Chelyabinsk", "Kazan"), 150);
-		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "SaintPetersburg"), 1700);
-		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "Moscow"), 700);
-		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 400);
-
+		initRoadmap();
 		Object[] args = getArguments();
 		if (args != null && args.length >= 2) {
 			currentPlace = (String) args[0];
@@ -72,6 +59,26 @@ public class TravellerAgent extends Agent {
 				}
 			});
 		}
+	}
+
+	@Override
+	protected void takeDown() {}
+
+	private void initRoadmap() {
+		roads.addVertex("Moscow");
+		roads.addVertex("SaintPetersburg");
+		roads.addVertex("Kazan");
+		roads.addVertex("Chelyabinsk");
+		roads.addVertex("Ekaterinburg");
+		roads.addVertex("Yaroslavl");
+		roads.setEdgeWeight(roads.addEdge("Moscow", "SaintPetersburg"), 600);
+		roads.setEdgeWeight(roads.addEdge("Moscow", "Kazan"), 500);
+		roads.setEdgeWeight(roads.addEdge("Moscow", "Ekaterinburg"), 2800);
+		roads.setEdgeWeight(roads.addEdge("Moscow", "Chelyabinsk"), 600);
+		roads.setEdgeWeight(roads.addEdge("Chelyabinsk", "Kazan"), 150);
+		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "SaintPetersburg"), 1700);
+		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "Moscow"), 700);
+		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 400);
 	}
 
 	private class LifeCycle extends SequentialBehaviour {
@@ -126,8 +133,6 @@ public class TravellerAgent extends Agent {
 			});
 		}
 	}
-
-	protected void takeDown() {}
 
 	private class DriverSearcher extends SequentialBehaviour {
 		private String replyWith;
