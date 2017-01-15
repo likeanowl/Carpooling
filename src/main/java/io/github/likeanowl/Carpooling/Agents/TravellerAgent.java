@@ -77,6 +77,9 @@ public class TravellerAgent extends Agent {
 		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 400);
 	}
 
+	/**
+	 * Just lifecycle of agent
+	 */
 	private class LifeCycle extends SequentialBehaviour {
 		public LifeCycle(final Agent agent) {
 			super(agent);
@@ -85,6 +88,9 @@ public class TravellerAgent extends Agent {
 		}
 	}
 
+	/**
+	 * Inner lifecycle logic
+	 */
 	private class CycleLogic extends OneShotBehaviour {
 		private Agent agent;
 		private LifeCycle cycle;
@@ -311,8 +317,8 @@ public class TravellerAgent extends Agent {
 				sequentialBehaviour.addSubBehaviour(new ReceiverBehaviour(myAgent, handle, MILLIS2
 						, MessageTemplate.and(MessageTemplate.MatchConversationId(AGREE_FOR_CARPOOLING)
 						, MessageTemplate.MatchSender(coDriver))));
-				DriverDecision driverDecision = new DriverDecision(myAgent, handle, coDriverName);
-				sequentialBehaviour.addSubBehaviour(driverDecision);
+				ReplyDecider replyDecider = new ReplyDecider(myAgent, handle, coDriverName);
+				sequentialBehaviour.addSubBehaviour(replyDecider);
 				parallelBehaviour.addSubBehaviour(sequentialBehaviour);//receive AGREE or REFUSE from coDriver
 				parallelBehaviour.addSubBehaviour(new Refuser(myAgent));//REFUSE offers wrom other travelers
 				addSubBehaviour(parallelBehaviour);
@@ -334,11 +340,11 @@ public class TravellerAgent extends Agent {
 		}
 	}
 
-	private class DriverDecision extends OneShotBehaviour {
+	private class ReplyDecider extends OneShotBehaviour {
 		private Handle handle;
 		private String coDriverName;
 
-		public DriverDecision(Agent agent, Handle handle, String coDriverName) {
+		public ReplyDecider(Agent agent, Handle handle, String coDriverName) {
 			super(agent);
 			this.handle = handle;
 			this.coDriverName = coDriverName;
