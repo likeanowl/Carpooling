@@ -1,5 +1,6 @@
 package io.github.likeanowl.Carpooling.Boot;
 
+import io.github.likeanowl.Carpooling.Agents.TravellerAgent;
 import jade.core.Agent;
 import jade.wrapper.AgentController;
 import jade.wrapper.ControllerException;
@@ -22,7 +23,7 @@ public class Bootstraper extends Agent {
 				try {
 					String[] travelerInfo = in.readLine().split(" ");
 					AgentController traveler = controller.createNewAgent("Traveller_" + i
-							, "TravellerAgent", travelerInfo);
+							, TravellerAgent.class.getName(), travelerInfo);
 					traveler.start();
 				} catch (ControllerException ex) {
 					System.err.println("Exception while adding traveller agent Traveller_" + i);

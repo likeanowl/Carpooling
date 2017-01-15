@@ -163,9 +163,7 @@ public class TravellerAgent extends Agent {
 				for (AID dr : drivers) {
 					msg.addReceiver(dr);
 				}
-
 				myAgent.send(msg);
-
 			}
 		}
 
@@ -272,7 +270,9 @@ public class TravellerAgent extends Agent {
 				sequentialBehaviour.addSubBehaviour(new ReceiverBehaviour(myAgent, handle, MILLIS2
 						, MessageTemplate.and(MessageTemplate.MatchConversationId(AGREE_FOR_CARPOOLING)
 						, MessageTemplate.MatchSender(coDriver))));
-				sequentialBehaviour.addSubBehaviour(new OneShotBehaviour(myAgent) {
+				DecisionBehaviour decisionBehaviour = new DecisionBehaviour(myAgent, handle, coDriverName);
+				sequentialBehaviour.addSubBehaviour(decisionBehaviour);
+				/*sequentialBehaviour.addSubBehaviour(new OneShotBehaviour(myAgent) {
 					@Override
 					public void action() {
 						try {
@@ -328,7 +328,7 @@ public class TravellerAgent extends Agent {
 							});
 						}
 					}
-				});
+				});*/
 				parallelBehaviour.addSubBehaviour(sequentialBehaviour);                  //receive AGREE or REFUSE from coDriver
 				parallelBehaviour.addSubBehaviour(new Refuser(myAgent));//REFUSE offers wrom other travelers
 				addSubBehaviour(parallelBehaviour);
@@ -340,45 +340,111 @@ public class TravellerAgent extends Agent {
 						addBehaviour(new LifeCycle(myAgent));
 					}
 				});
-
 			}
 		}
+	}
 
-		private class AgreeForBestOffer extends OneShotBehaviour {
-			AgreeForBestOffer(Agent agent) {
-				super(agent);
-			}
+	private class DecisionBehaviour extends OneShotBehaviour {
+		private Handle handle;
+		private String coDriverName;
 
-			@Override
-			public void action() {
-				if (coDriver != null) {
-					ACLMessage msg = new ACLMessage(ACLMessage.AGREE);
-					msg.addReceiver(coDriver);
-					msg.setConversationId(AGREE_FOR_CARPOOLING);
-					myAgent.send(msg);
-					System.out.println(myAgent.getLocalName() + ": want go with " + coDriver.getLocalName()
-							+ "; with economy " + maxEconomy);
-				}
-			}
+		public DecisionBehaviour(Agent agent, Handle handle, String coDriverName) {
+			super(agent);
+			this.handle = handle;
+			this.coDriverName = coDriverName;
 		}
 
-		public class Refuser extends CyclicBehaviour {
-			Refuser(Agent agent) {
-				super(agent);
-			}
-
-			@Override
-			public void action() {
-				ACLMessage agr = myAgent.receive(MessageTemplate.and(MessageTemplate.not(MessageTemplate.MatchSender(coDriver))
-						, MessageTemplate.MatchPerformative(ACLMessage.AGREE)));
-				if (agr != null) {
-					ACLMessage rfs = agr.createReply();
-					rfs.setPerformative(ACLMessage.REFUSE);
-					myAgent.send(rfs);
-					System.out.println(myAgent.getLocalName() + ": refuse agree from " + agr.getSender().getLocalName());
+		@Override
+		public void action() {
+			try {
+				ACLMessage msg = handle.getMessage();
+				if (msg.getPerformative() == ACLMessage.AGREE) {
+					System.out.println(ANSI_RED + myAgent.getLocalName() + ": goes with "
+							+ coDriverName + " as " + travelerCategory + ANSI_RESET);
+					ParallelBehaviour offer = new ParallelBehaviour(myAgent, 2);
+					offer.addSubBehaviour(new Refuser(myAgent));
+					offer.addSubBehaviour(new OneShotBehaviour(myAgent) {
+						@Override
+						public void action() {
+							try {
+								DFService.deregister(myAgent);
+							} catch (FIPAException fe) {
+								fe.printStackTrace();
+							}
+						}
+					});
+					offer.addSubBehaviour(new WakerBehaviour(myAgent, 5000) {
+						@Override
+						protected void onWake() {
+							doDelete();
+						}
+					});
+					addBehaviour(offer);
 				} else {
-					block();
+					addBehaviour(new WakerBehaviour(myAgent, 5000) {
+						@Override
+						protected void onWake() {
+							System.out.println(myAgent.getLocalName() + ": restart life cycle");
+							addBehaviour(new LifeCycle(myAgent));
+						}
+					});
 				}
+			} catch (ReceiverBehaviour.NotYetReady notYetReady) {
+				System.out.println(myAgent.getLocalName() + ": reply not yet ready");
+				addBehaviour(new WakerBehaviour(myAgent, 3000) {
+					@Override
+					protected void onWake() {
+						System.out.println(myAgent.getLocalName() + ": restart life cycle");
+						addBehaviour(new LifeCycle(myAgent));
+					}
+				});
+			} catch (ReceiverBehaviour.TimedOut timedOut) {
+				System.out.println(myAgent.getLocalName() + ": time out");
+				addBehaviour(new WakerBehaviour(myAgent, 3000) {
+					@Override
+					protected void onWake() {
+						System.out.println(myAgent.getLocalName() + ": restart life cycle");
+						addBehaviour(new LifeCycle(myAgent));
+					}
+				});
+			}
+		}
+	}
+
+	private class Refuser extends CyclicBehaviour {
+		Refuser(Agent agent) {
+			super(agent);
+		}
+
+		@Override
+		public void action() {
+			ACLMessage agr = myAgent.receive(MessageTemplate.and(MessageTemplate.not(MessageTemplate.MatchSender(coDriver))
+					, MessageTemplate.MatchPerformative(ACLMessage.AGREE)));
+			if (agr != null) {
+				ACLMessage rfs = agr.createReply();
+				rfs.setPerformative(ACLMessage.REFUSE);
+				myAgent.send(rfs);
+				System.out.println(myAgent.getLocalName() + ": refuse agree from " + agr.getSender().getLocalName());
+			} else {
+				block();
+			}
+		}
+	}
+
+	private class AgreeForBestOffer extends OneShotBehaviour {
+		AgreeForBestOffer(Agent agent) {
+			super(agent);
+		}
+
+		@Override
+		public void action() {
+			if (coDriver != null) {
+				ACLMessage msg = new ACLMessage(ACLMessage.AGREE);
+				msg.addReceiver(coDriver);
+				msg.setConversationId(AGREE_FOR_CARPOOLING);
+				myAgent.send(msg);
+				System.out.println(myAgent.getLocalName() + ": want go with " + coDriver.getLocalName()
+						+ "; with economy " + maxEconomy);
 			}
 		}
 	}
