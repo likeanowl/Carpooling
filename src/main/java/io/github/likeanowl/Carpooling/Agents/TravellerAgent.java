@@ -19,7 +19,7 @@ import java.util.Set;
 import static io.github.likeanowl.Carpooling.Constants.Constants.*;
 
 public class TravellerAgent extends Agent {
-	private String travelerCategory;
+	private String travellerCategory;
 	private int cyclesCount = 0;
 	private String targetPlace;
 	private String currentPlace;
@@ -44,7 +44,7 @@ public class TravellerAgent extends Agent {
 			agentDescription.setName(getAID());
 			ServiceDescription serviceDescription = new ServiceDescription();
 			serviceDescription.setType(CARPOOLING);
-			serviceDescription.setName("carpooling");
+			serviceDescription.setName("Carpooling");
 			agentDescription.addServices(serviceDescription);
 			try {
 				DFService.register(this, agentDescription);
@@ -72,9 +72,9 @@ public class TravellerAgent extends Agent {
 		roads.setEdgeWeight(roads.addEdge("Moscow", "Ekaterinburg"), 2800);
 		roads.setEdgeWeight(roads.addEdge("Moscow", "Chelyabinsk"), 600);
 		roads.setEdgeWeight(roads.addEdge("Chelyabinsk", "Kazan"), 150);
-		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "SaintPetersburg"), 1700);
-		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "Moscow"), 700);
-		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 400);
+		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "SaintPetersburg"), 1200);
+		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "Moscow"), 300);
+		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 800);
 	}
 
 	/**
@@ -122,7 +122,7 @@ public class TravellerAgent extends Agent {
 				}
 				if (drivers.size() > 0) {
 					ParallelBehaviour parallelBehaviour = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
-					parallelBehaviour.addSubBehaviour(new DriverSearcher(agent));
+					parallelBehaviour.addSubBehaviour(new DriverQuerier(agent));
 					parallelBehaviour.addSubBehaviour(new PassengerSearcher(agent));
 					cycle.addSubBehaviour(parallelBehaviour);
 					cycle.addSubBehaviour(new OfferRequestServer(agent));
@@ -147,18 +147,18 @@ public class TravellerAgent extends Agent {
 		}
 	}
 
-	private class DriverSearcher extends SequentialBehaviour {
+	private class DriverQuerier extends SequentialBehaviour {
 		private String replyWith;
 
-		public DriverSearcher(Agent agent) {
+		public DriverQuerier(Agent agent) {
 			super(agent);
 			ProposeSender proposeSender = new ProposeSender(agent);
 			addSubBehaviour(proposeSender); // send proposals for drivers
 			replyWith = proposeSender.getReplyWith();
 			ParallelBehaviour parallelBehaviour = new ParallelBehaviour(agent, ParallelBehaviour.WHEN_ALL);
 			for (AID dr : drivers) {
-				parallelBehaviour.addSubBehaviour(new ProposeReplyReceiver(agent, dr, replyWith)); //add Receiver for all
-				// proposals
+				parallelBehaviour.addSubBehaviour(new ProposeReplyReceiver(agent, dr, replyWith));
+				//add Receiver for all proposals
 			}
 			addSubBehaviour(parallelBehaviour); // receive replies from drivers
 		}
@@ -219,7 +219,7 @@ public class TravellerAgent extends Agent {
 					if (distance - price > maxEconomy) {
 						maxEconomy = distance - price;
 						coDriver = msg.getSender();
-						travelerCategory = PASSENGER;
+						travellerCategory = PASSENGER;
 					}
 				}
 			} catch (ReceiverBehaviour.TimedOut timedOut) {
@@ -278,9 +278,9 @@ public class TravellerAgent extends Agent {
 					if (0.5 * (passengersDistance - extraDistance) > maxEconomy) {
 						maxEconomy = (int) (0.5 * (passengersDistance - extraDistance));
 						coDriver = msg.getSender();
-						travelerCategory = DRIVER;
+						travellerCategory = DRIVER;
 						if (passengersDistance == distance)
-							travelerCategory = DRIVER + " or " + PASSENGER;
+							travellerCategory = DRIVER + " or " + PASSENGER;
 					}
 					reply.setPerformative(ACLMessage.PROPOSE);
 					System.out.println(myAgent.getLocalName() + ": send propose to "
@@ -320,7 +320,7 @@ public class TravellerAgent extends Agent {
 				ReplyDecider replyDecider = new ReplyDecider(myAgent, handle, coDriverName);
 				sequentialBehaviour.addSubBehaviour(replyDecider);
 				parallelBehaviour.addSubBehaviour(sequentialBehaviour);//receive AGREE or REFUSE from coDriver
-				parallelBehaviour.addSubBehaviour(new Refuser(myAgent));//REFUSE offers wrom other travelers
+				parallelBehaviour.addSubBehaviour(new Refuser(myAgent));//REFUSE offers from other travelers
 				addSubBehaviour(parallelBehaviour);
 			} else {
 				addBehaviour(new Restarter(myAgent, 5000));
@@ -356,7 +356,7 @@ public class TravellerAgent extends Agent {
 				ACLMessage msg = handle.getMessage();
 				if (msg.getPerformative() == ACLMessage.AGREE) {
 					System.out.println(ANSI_RED + myAgent.getLocalName() + ": goes with "
-							+ coDriverName + " as " + travelerCategory + ANSI_RESET);
+							+ coDriverName + " as " + travellerCategory + ANSI_RESET);
 					ParallelBehaviour offer = new ParallelBehaviour(myAgent, 2);
 					offer.addSubBehaviour(new Refuser(myAgent));
 					offer.addSubBehaviour(new OneShotBehaviour(myAgent) {

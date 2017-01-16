@@ -4,3 +4,4 @@ Moscow Kazan
 Moscow Chelyabinsk
 Moscow Kazan
 Yaroslavl Kazan
+Yaroslavl
