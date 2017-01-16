@@ -13,21 +13,23 @@ import jade.lang.acl.MessageTemplate;
 import org.jgrapht.alg.DijkstraShortestPath;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
+
 import java.util.HashSet;
 import java.util.Set;
 
 import static io.github.likeanowl.Carpooling.Constants.Constants.*;
 
 public class TravellerAgent extends Agent {
-	private String travellerCategory;
+	private String travellerCategory = NOT_SET;
 	private int cyclesCount = 0;
 	private String targetPlace;
 	private String currentPlace;
-	private Set<AID> drivers = new java.util.HashSet<>();
+	private Set<AID> drivers = new HashSet<>();
 	private int distance;
 	private SimpleWeightedGraph<String, DefaultWeightedEdge> roads = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
 	private double maxEconomy = 0;
 	private AID coDriver;
+	private int coDriversCount = 0;
 
 	@Override
 	protected void setup() {
@@ -38,8 +40,9 @@ public class TravellerAgent extends Agent {
 			currentPlace = (String) args[0];
 			targetPlace = (String) args[1];
 			distance = (int) (new DijkstraShortestPath<>(roads, currentPlace, targetPlace)).getPathLength();
-			System.out.println("Traveler agent: " + getAID().getLocalName());
-			System.out.println("Current place: " + currentPlace + "; Target place: " + targetPlace + "; Distance: " + distance);
+			String agentState = "Traveler agent: " + getAID().getLocalName() + "\n" + "Current place: " + currentPlace
+					+ "; Target place: " + targetPlace + "; Distance: " + distance;
+			System.out.println(agentState);
 			DFAgentDescription agentDescription = new DFAgentDescription();
 			agentDescription.setName(getAID());
 			ServiceDescription serviceDescription = new ServiceDescription();
@@ -74,7 +77,7 @@ public class TravellerAgent extends Agent {
 		roads.setEdgeWeight(roads.addEdge("Chelyabinsk", "Kazan"), 150);
 		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "SaintPetersburg"), 1200);
 		roads.setEdgeWeight(roads.addEdge("Yaroslavl", "Moscow"), 300);
-		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 800);
+		roads.setEdgeWeight(roads.addEdge("Kazan", "Yaroslavl"), 600);
 	}
 
 	/**
@@ -136,7 +139,12 @@ public class TravellerAgent extends Agent {
 					});
 				}
 			} else {
-				System.out.println(ANSI_RED + agent.getLocalName() + ": goes alone" + ANSI_RESET);
+				if (coDriversCount == 0)
+					System.out.println(ANSI_RED + agent.getLocalName() + ": goes alone" + ANSI_RESET);
+				else
+					System.out.println(ANSI_RED + agent.getLocalName() + ": goes with " + coDriversCount + " agent(s)" +
+							" " +
+									"on board" + ANSI_RESET);
 				try {
 					DFService.deregister(agent);
 				} catch (FIPAException fe) {
@@ -175,7 +183,7 @@ public class TravellerAgent extends Agent {
 		public void action() {
 			ACLMessage msg = new ACLMessage(ACLMessage.CFP);
 			msg.removeReceiver(getAID());
-			msg.setContent(currentPlace + " " + targetPlace + " " + distance);
+			msg.setContent(currentPlace + " " + targetPlace + " " + distance + " " + travellerCategory);
 			msg.setConversationId(CARPOOLING);
 			msg.setReplyWith(replyWith);
 			System.out.println(myAgent.getLocalName() + ": call for proposals");
@@ -262,12 +270,14 @@ public class TravellerAgent extends Agent {
 			this.handle = handle;
 			this.agent = agent;
 			this.sender = sender;
+
 		}
 
 		@Override
 		public void action() {
 			try {
 				ACLMessage msg = handle.getMessage();
+				AID aid = msg.getSender();
 				ACLMessage reply = msg.createReply();
 				String[] content = msg.getContent().split(" ");
 				int passengersDistance = Integer.parseInt(content[2]);
@@ -278,9 +288,14 @@ public class TravellerAgent extends Agent {
 					if (0.5 * (passengersDistance - extraDistance) > maxEconomy) {
 						maxEconomy = (int) (0.5 * (passengersDistance - extraDistance));
 						coDriver = msg.getSender();
+						System.out.println(coDriver.getLocalName());
 						travellerCategory = DRIVER;
-						if (passengersDistance == distance)
-							travellerCategory = DRIVER + " or " + PASSENGER;
+						if (passengersDistance == distance) {
+							if (content[3].equals(NOT_SET) || content[3].equals(PASSENGER))
+								travellerCategory = DRIVER;
+							else if (content[3].equals(DRIVER))
+								travellerCategory = PASSENGER;
+						}
 					}
 					reply.setPerformative(ACLMessage.PROPOSE);
 					System.out.println(myAgent.getLocalName() + ": send propose to "
@@ -293,9 +308,9 @@ public class TravellerAgent extends Agent {
 				}
 				myAgent.send(reply);
 			} catch (ReceiverBehaviour.TimedOut timedOut) {
-				System.out.println(agent + ": time out while receiving cfp from " + sender.getLocalName());
+				System.out.println(agent.getLocalName() + ": time out while receiving cfp from " + sender.getLocalName());
 			} catch (ReceiverBehaviour.NotYetReady notYetReady) {
-				System.out.println(agent + ": cfp from " + sender.getLocalName() + " not yet ready");
+				System.out.println(agent.getLocalName() + ": cfp from " + sender.getLocalName() + " not yet ready");
 			}
 		}
 	}
@@ -328,18 +343,6 @@ public class TravellerAgent extends Agent {
 		}
 	}
 
-	private class Restarter extends WakerBehaviour {
-		public Restarter(Agent a, long timeout) {
-			super(a, timeout);
-		}
-
-		@Override
-		protected void onWake() {
-			System.out.println(myAgent.getLocalName() + ": restart life cycle");
-			addBehaviour(new LifeCycle(myAgent));
-		}
-	}
-
 	private class ReplyDecider extends OneShotBehaviour {
 		private Handle handle;
 		private String coDriverName;
@@ -357,53 +360,45 @@ public class TravellerAgent extends Agent {
 				if (msg.getPerformative() == ACLMessage.AGREE) {
 					System.out.println(ANSI_RED + myAgent.getLocalName() + ": goes with "
 							+ coDriverName + " as " + travellerCategory + ANSI_RESET);
-					ParallelBehaviour offer = new ParallelBehaviour(myAgent, 2);
-					offer.addSubBehaviour(new Refuser(myAgent));
-					offer.addSubBehaviour(new OneShotBehaviour(myAgent) {
-						@Override
-						public void action() {
-							try {
-								DFService.deregister(myAgent);
-							} catch (FIPAException fe) {
-								fe.printStackTrace();
+					coDriversCount++;
+					if (coDriversCount == 3 || travellerCategory.equals(PASSENGER)) {
+						ParallelBehaviour offer = new ParallelBehaviour(myAgent, 2);
+						offer.addSubBehaviour(new Refuser(myAgent));
+						offer.addSubBehaviour(new Deregister(myAgent));
+						offer.addSubBehaviour(new WakerBehaviour(myAgent, 5000) {
+							@Override
+							protected void onWake() {
+								doDelete();
 							}
-						}
-					});
-					offer.addSubBehaviour(new WakerBehaviour(myAgent, 5000) {
-						@Override
-						protected void onWake() {
-							doDelete();
-						}
-					});
-					addBehaviour(offer);
+						});
+						addBehaviour(offer);
+					} else {
+						addBehaviour(new Restarter(myAgent, 5000));
+					}
+				} else if (travellerCategory.equals(PASSENGER)){
+					addBehaviour(new Restarter(myAgent, 5000));
 				} else {
-					addBehaviour(new WakerBehaviour(myAgent, 5000) {
-						@Override
-						protected void onWake() {
-							System.out.println(myAgent.getLocalName() + ": restart life cycle");
-							addBehaviour(new LifeCycle(myAgent));
-						}
-					});
+					addBehaviour(new Deregister(myAgent));
 				}
 			} catch (ReceiverBehaviour.NotYetReady notYetReady) {
 				System.out.println(myAgent.getLocalName() + ": reply not yet ready");
-				addBehaviour(new WakerBehaviour(myAgent, 3000) {
-					@Override
-					protected void onWake() {
-						System.out.println(myAgent.getLocalName() + ": restart life cycle");
-						addBehaviour(new LifeCycle(myAgent));
-					}
-				});
+				addBehaviour(new Restarter(myAgent, 3000));
 			} catch (ReceiverBehaviour.TimedOut timedOut) {
 				System.out.println(myAgent.getLocalName() + ": time out");
-				addBehaviour(new WakerBehaviour(myAgent, 3000) {
-					@Override
-					protected void onWake() {
-						System.out.println(myAgent.getLocalName() + ": restart life cycle");
-						addBehaviour(new LifeCycle(myAgent));
-					}
-				});
+				addBehaviour(new Restarter(myAgent, 3000));
 			}
+		}
+	}
+
+	private class Restarter extends WakerBehaviour {
+		public Restarter(Agent a, long timeout) {
+			super(a, timeout);
+		}
+
+		@Override
+		protected void onWake() {
+			System.out.println(myAgent.getLocalName() + ": restart life cycle");
+			addBehaviour(new LifeCycle(myAgent));
 		}
 	}
 
@@ -414,8 +409,8 @@ public class TravellerAgent extends Agent {
 
 		@Override
 		public void action() {
-			ACLMessage agr = myAgent.receive(MessageTemplate.and(MessageTemplate.not(MessageTemplate.MatchSender(coDriver))
-					, MessageTemplate.MatchPerformative(ACLMessage.AGREE)));
+			ACLMessage agr = myAgent.receive(MessageTemplate.and(MessageTemplate.not(MessageTemplate
+							.MatchSender(coDriver)), MessageTemplate.MatchPerformative(ACLMessage.AGREE)));
 			if (agr != null) {
 				ACLMessage rfs = agr.createReply();
 				rfs.setPerformative(ACLMessage.REFUSE);
@@ -440,7 +435,22 @@ public class TravellerAgent extends Agent {
 				msg.setConversationId(AGREE_FOR_CARPOOLING);
 				myAgent.send(msg);
 				System.out.println(myAgent.getLocalName() + ": want go with " + coDriver.getLocalName()
-						+ "; with economy " + maxEconomy);
+						+ "; with economy " + (int) maxEconomy);
+			}
+		}
+	}
+
+	private class Deregister extends OneShotBehaviour {
+		public Deregister (Agent agent) {
+			super(agent);
+		}
+
+		@Override
+		public void action() {
+			try {
+				DFService.deregister(myAgent);
+			} catch (FIPAException fe) {
+				fe.printStackTrace();
 			}
 		}
 	}

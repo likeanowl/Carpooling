@@ -8,6 +8,8 @@ public class Constants {
 	public static final int MAX_CYCLES_COUNT = 5;
 	public static final String DRIVER = "driver";
 	public static final String PASSENGER = "passenger";
+	public static final String DRIVER_OR_PASSENGER = "driver or passenger";
+	public static final String NOT_SET = "not_set";
 	public static final String AGREE_FOR_CARPOOLING = "agreeForCarpooling";
 	public static final String CARPOOLING = "carpooling";
 	public static final int MILLIS = 5000;

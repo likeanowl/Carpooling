@@ -1,7 +1,7 @@
-5
+6
 SaintPetersburg Chelyabinsk
-Moscow Kazan
+SaintPetersburg Moscow
 Moscow Chelyabinsk
-Moscow Kazan
-Yaroslavl Kazan
-Yaroslavl
+Chelyabinsk Yaroslavl
+Kazan Yaroslavl
+Kazan Yaroslavl
